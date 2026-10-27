@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>k6 · démo live</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f3f0; --surface: #fcfcfb; --border: #e2e0da;
+    --text: #0b0b0b; --text-2: #52514e; --muted: #8a8984;
+    --accent: #7d64ff; --s1: #2a78d6; --s2: #eb6834;
+    --good: #0ca30c; --bad: #d03b3b; --grid: #ecebe7;
+    --code-bg: #f7f6f3; --kw: #6250d6; --str: #0f7a4f; --com: #8a8984;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #121211; --surface: #1a1a19; --border: #2e2e2b;
+      --text: #f0efec; --text-2: #c3c2b7; --muted: #8d8c85;
+      --s1: #3987e5; --s2: #d95926; --grid: #262624;
+      --code-bg: #151514; --kw: #9085e9; --str: #4fc08d; --com: #7c7b75;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 20px 24px 40px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); margin: 0 0 10px; font-weight: 600; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+
+  /* En-tête */
+  header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+  .logo { width: 40px; height: 40px; border-radius: 10px; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 18px; }
+  header h1 { margin: 0; font-size: 22px; }
+  header .sub { color: var(--text-2); font-size: 14px; }
+  header a { color: inherit; }
+  .pill { margin-left: auto; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: 14px; display: flex; gap: 8px; align-items: center; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .running .dot { background: var(--good); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+
+  /* Boutons de lancement */
+  .launch { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .script { text-align: left; font: inherit; color: inherit; cursor: pointer; background: var(--surface); border: 2px solid var(--border);
+    border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; transition: transform .1s, border-color .1s; }
+  .script:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-2px); }
+  .script:disabled { cursor: default; opacity: .45; }
+  .script.active { opacity: 1; border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent); }
+  .script .num { font-size: 12px; font-weight: 700; color: var(--accent); }
+  .script .title { font-size: 18px; font-weight: 700; }
+  .script .desc { font-size: 13px; color: var(--text-2); }
+  .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+  #stop { font: inherit; font-weight: 600; padding: 8px 18px; border-radius: 10px; border: 0; background: var(--bad); color: #fff; cursor: pointer; }
+  #stop:disabled { opacity: .3; cursor: default; }
+  #verdict { padding: 8px 14px; border-radius: 10px; font-weight: 600; border: 1px solid var(--border); background: var(--surface); }
+  #verdict.ok { border-color: var(--good); }
+  #verdict.ko { border-color: var(--bad); }
+
+  /* Chiffres clés */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .kpi .label { font-size: 13px; color: var(--text-2); }
+  .kpi .value { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; margin-top: 4px; }
+  .kpi .unit { font-size: 15px; font-weight: 500; color: var(--text-2); margin-left: 3px; }
+  .kpi .hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Graphiques */
+  .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .legend { display: flex; gap: 14px; font-size: 13px; color: var(--text-2); }
+  .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  .canvas { position: relative; height: 210px; }
+
+  /* Code et sortie */
+  .bottom { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  pre { margin: 0; height: 420px; overflow: auto; background: var(--code-bg); border-radius: 10px; padding: 12px 14px;
+    font: 13px/1.55 ui-monospace, "Cascadia Code", Consolas, monospace; white-space: pre; }
+  .kw { color: var(--kw); font-weight: 600; } .str { color: var(--str); } .com { color: var(--com); font-style: italic; }
+  .empty { color: var(--muted); font-style: italic; }
+
+  @media (max-width: 900px) { .charts, .bottom { grid-template-columns: 1fr; } .pill { margin-left: 0; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">k6</div>
+    <div>
+      <h1>k6 · démo live</h1>
+      <div class="sub">Application testée : <a id="target" href="http://localhost:3333" target="_blank">QuickPizza</a></div>
+    </div>
+    <div class="pill" id="pill"><span class="dot"></span><span id="status">Connexion…</span></div>
+  </header>
+
+  <h2>1. Choisis un test</h2>
+  <div class="launch" id="launch"></div>
+  <div class="actions">
+    <button id="stop" disabled>■ Arrêter</button>
+    <span id="verdict" hidden></span>
+  </div>
+
+  <h2>2. Observe en direct</h2>
+  <div class="kpis">
+    <div class="card kpi"><div class="label">Utilisateurs virtuels</div><div class="value" id="k-vus">–</div><div class="hint">VUs actifs</div></div>
+    <div class="card kpi"><div class="label">Débit</div><div class="value"><span id="k-rps">–</span><span class="unit">req/s</span></div><div class="hint">dernière seconde</div></div>
+    <div class="card kpi"><div class="label">Temps de réponse p95</div><div class="value"><span id="k-p95">–</span><span class="unit">ms</span></div><div class="hint">95 % des requêtes plus rapides</div></div>
+    <div class="card kpi"><div class="label">Erreurs</div><div class="value"><span id="k-err">–</span><span class="unit">%</span></div><div class="hint" id="k-err-hint">requêtes en échec</div></div>
+    <div class="card kpi"><div class="label">Requêtes envoyées</div><div class="value" id="k-total">–</div><div class="hint" id="k-time">depuis le début</div></div>
+  </div>
+
+  <div class="charts">
+    <div class="card"><div class="chart-head"><h2>Utilisateurs virtuels (VUs)</h2></div><div class="canvas"><canvas id="c-vus"></canvas></div></div>
+    <div class="card"><div class="chart-head"><h2>Requêtes par seconde</h2></div><div class="canvas"><canvas id="c-rps"></canvas></div></div>
+    <div class="card">
+      <div class="chart-head"><h2>Temps de réponse (ms)</h2>
+        <div class="legend"><span><i style="background:var(--s1)"></i>moyenne</span><span><i style="background:var(--s2)"></i>p95</span></div>
+      </div>
+      <div class="canvas"><canvas id="c-lat"></canvas></div>
+    </div>
+    <div class="card"><div class="chart-head"><h2>Taux d'erreur (%)</h2></div><div class="canvas"><canvas id="c-err"></canvas></div></div>
+  </div>
+
+  <h2>3. Comprends ce qui s'est passé</h2>
+  <div class="bottom">
+    <div class="card"><h2 id="code-title">Le script</h2><pre id="code"><span class="empty">Clique sur un test pour voir son code.</span></pre></div>
+    <div class="card"><h2>Sortie de k6 (résumé en fin de test)</h2><pre id="log"><span class="empty">Le résumé de k6 s'affichera ici.</span></pre></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+let scripts = [], running = null, total = 0;
+
+// ---------- Graphiques (Chart.js) ----------
+function lineChart(id, series, yMaxHint) {
+  return new Chart($(id), {
+    type: 'line',
+    data: { datasets: series.map(s => ({ label: s.label, data: [], colorVar: s.color, borderWidth: 2, pointRadius: 0, tension: .3 })) },
+    options: {
+      maintainAspectRatio: false, animation: false, parsing: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { title: i => `t = ${i[0].parsed.x} s` } } },
+      scales: {
+        x: { type: 'linear', min: 0, suggestedMax: 30, ticks: { callback: v => v + ' s', maxTicksLimit: 8 }, grid: { display: false } },
+        y: { beginAtZero: true, suggestedMax: yMaxHint, ticks: { maxTicksLimit: 5 } },
+      },
+    },
+  });
+}
+const charts = {
+  vus: lineChart('c-vus', [{ label: 'VUs', color: '--s1' }], 5),
+  rps: lineChart('c-rps', [{ label: 'req/s', color: '--s1' }], 5),
+  lat: lineChart('c-lat', [{ label: 'moyenne', color: '--s1' }, { label: 'p95', color: '--s2' }], 10),
+  err: lineChart('c-err', [{ label: 'erreurs %', color: '--s1' }], 1),
+};
+function applyTheme() {
+  Chart.defaults.color = css('--text-2');
+  for (const c of Object.values(charts)) {
+    c.data.datasets.forEach(d => d.borderColor = css(d.colorVar));
+    c.options.scales.y.grid.color = css('--grid');
+    c.options.scales.x.ticks.color = c.options.scales.y.ticks.color = css('--text-2');
+    c.update();
+  }
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+applyTheme();
+
+// ---------- Affichage du code avec un peu de couleur ----------
+const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+function highlight(src) {
+  const re = /(\/\/.*$)|('(?:[^'\\\n]|\\.)*'|`[^`]*`|"[^"\n]*")|\b(import|from|export|const|let|default|function|return|true|false)\b/gm;
+  let out = '', last = 0;
+  for (const m of src.matchAll(re)) {
+    out += esc(src.slice(last, m.index));
+    out += `<span class="${m[1] ? 'com' : m[2] ? 'str' : 'kw'}">${esc(m[0])}</span>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(src.slice(last));
+}
+async function showCode(file) {
+  const r = await fetch('/api/source?file=' + encodeURIComponent(file));
+  $('code').innerHTML = highlight(await r.text());
+  $('code-title').textContent = 'Le script · demo/' + file;
+}
+
+// ---------- Boutons ----------
+function renderButtons() {
+  $('launch').innerHTML = '';
+  scripts.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.className = 'script' + (s.file === running ? ' active' : '');
+    b.disabled = !!running;
+    b.innerHTML = `<span class="num">TEST ${i + 1}</span><span class="title"></span><span class="desc"></span>`;
+    b.querySelector('.title').textContent = s.title;
+    b.querySelector('.desc').textContent = s.desc.replace(/ ([?!:;])/g, ' $1'); // pas de « ? » seul en début de ligne
+    b.onclick = () => launch(s.file);
+    $('launch').append(b);
+  });
+  $('stop').disabled = !running;
+}
+async function launch(file) {
+  const r = await fetch('/api/run?file=' + encodeURIComponent(file), { method: 'POST' });
+  if (!r.ok) $('status').textContent = (await r.json()).error;
+}
+$('stop').onclick = () => fetch('/api/stop', { method: 'POST' });
+
+function reset() {
+  for (const c of Object.values(charts)) { c.data.datasets.forEach(d => d.data = []); c.update(); }
+  ['k-vus', 'k-rps', 'k-p95', 'k-err', 'k-total'].forEach(id => $(id).textContent = '0');
+  $('k-time').textContent = 'depuis le début';
+  $('log').innerHTML = ''; $('verdict').hidden = true; total = 0;
+}
+function setRunning(file) {
+  running = file;
+  $('pill').classList.toggle('running', !!file);
+  $('status').textContent = file ? `En cours : ${file}` : 'Prêt';
+  renderButtons();
+}
+
+// ---------- Flux temps réel envoyé par le serveur ----------
+const fmt = n => n.toLocaleString('fr-BE', { maximumFractionDigits: n < 10 ? 1 : 0 });
+const es = new EventSource('/api/events');
+es.addEventListener('hello', e => { $('target').title = JSON.parse(e.data).target; setRunning(null); });
+es.addEventListener('start', e => { const { file } = JSON.parse(e.data); reset(); setRunning(file); showCode(file); });
+es.addEventListener('tick', e => {
+  const d = JSON.parse(e.data);
+  total += d.reqs;
+  const push = (c, ...ys) => { ys.forEach((y, i) => c.data.datasets[i].data.push({ x: d.t, y })); c.update(); };
+  push(charts.vus, d.vus);
+  push(charts.rps, d.reqs);
+  push(charts.lat, d.avg === null ? null : +d.avg.toFixed(1), d.p95 === null ? null : +d.p95.toFixed(1));
+  push(charts.err, +(d.errors * 100).toFixed(2));
+  $('k-vus').textContent = d.vus;
+  $('k-rps').textContent = fmt(d.reqs);
+  $('k-p95').textContent = d.p95 === null ? '–' : fmt(d.p95);
+  $('k-err').textContent = fmt(d.errors * 100);
+  $('k-err-hint').textContent = d.failed ? `⚠ ${d.failed} en échec cette seconde` : 'requêtes en échec';
+  $('k-total').textContent = total.toLocaleString('fr-BE');
+  $('k-time').textContent = `en ${d.t + 1} s`;
+});
+es.addEventListener('log', e => {
+  const log = $('log');
+  log.textContent += JSON.parse(e.data);
+  log.scrollTop = log.scrollHeight;
+});
+es.addEventListener('done', e => {
+  const { code } = JSON.parse(e.data);
+  const v = $('verdict');
+  v.hidden = false;
+  v.className = code === 0 ? 'ok' : code === 99 ? 'ko' : '';
+  v.textContent = code === 0 ? '✅ Réussi : tous les thresholds sont respectés (code 0)'
+    : code === 99 ? '❌ Échec : un threshold est dépassé (code 99, une CI serait rouge)'
+    : `⏹ Test interrompu (code ${code})`;
+  $('log').scrollTop = 0; // le résumé commence par les THRESHOLDS
+  setRunning(null);
+});
+es.onerror = () => $('status').textContent = 'Serveur injoignable…';
+
+fetch('/api/scripts').then(r => r.json()).then(list => { scripts = list; renderButtons(); });
+</script>
+</body>
+</html>

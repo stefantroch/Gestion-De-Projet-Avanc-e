@@ -1,0 +1,38 @@
+// @title Spike test
+// @desc De 0 à 300 utilisateurs en 5 s : l'application encaisse-t-elle le choc ?
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:3333';
+
+export const options = {
+  stages: [
+    { duration: '5s', target: 300 }, // pic brutal
+    { duration: '10s', target: 300 }, // maintien
+    { duration: '5s', target: 0 },   // retour au calme
+  ],
+  thresholds: {
+    http_req_failed: ['rate<0.01'],
+    http_req_duration: ['p(95)<300'],
+  },
+};
+
+const params = {
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: 'token abcdef0123456789',
+  },
+};
+
+export default function () {
+  const res = http.post(`${BASE_URL}/api/pizza`, JSON.stringify({
+    maxCaloriesPerSlice: 1000,
+    mustBeVegetarian: false,
+    excludedIngredients: [],
+    excludedTools: [],
+    maxNumberOfToppings: 5,
+    minNumberOfToppings: 2,
+  }), params);
+  check(res, { 'pizza 200': (r) => r.status === 200 });
+  sleep(0.5);
+}
