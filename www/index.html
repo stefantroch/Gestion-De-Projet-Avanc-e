@@ -1,0 +1,364 @@
+from pathlib import Path
+
+html = r"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>k6 — Performance Testing</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #11182d;
+      --panel-2: #17213b;
+      --text: #f5f7ff;
+      --muted: #aeb8d3;
+      --accent: #7c5cff;
+      --accent-2: #19d3ae;
+      --border: rgba(255,255,255,.10);
+      --shadow: 0 20px 50px rgba(0,0,0,.28);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(124,92,255,.20), transparent 30%),
+        radial-gradient(circle at top right, rgba(25,211,174,.12), transparent 25%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .container {
+      width: min(1100px, calc(100% - 40px));
+      margin: auto;
+    }
+
+    header {
+      padding: 26px 0;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(14px);
+      background: rgba(11,16,32,.80);
+      z-index: 10;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: .3px;
+      font-size: 1.15rem;
+    }
+
+    .brand span { color: var(--accent-2); }
+
+    .tag {
+      color: var(--muted);
+      font-size: .92rem;
+    }
+
+    .hero {
+      padding: 90px 0 55px;
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 40px;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 0 0 20px;
+      font-size: clamp(2.5rem, 6vw, 5rem);
+      line-height: .98;
+      letter-spacing: -2px;
+    }
+
+    h1 span { color: var(--accent-2); }
+
+    .hero p {
+      color: var(--muted);
+      font-size: 1.08rem;
+      max-width: 680px;
+    }
+
+    .hero-card {
+      background: linear-gradient(145deg, var(--panel-2), var(--panel));
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 26px;
+      box-shadow: var(--shadow);
+    }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .metric:last-child { border-bottom: 0; }
+
+    .metric strong { color: var(--accent-2); }
+
+    .section-title {
+      margin: 55px 0 22px;
+      font-size: 1.75rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .card {
+      background: rgba(17,24,45,.84);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px;
+    }
+
+    .card h3 {
+      margin-top: 0;
+      margin-bottom: 8px;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .tests {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin: 24px 0 30px;
+    }
+
+    .test-btn {
+      display: block;
+      text-decoration: none;
+      color: white;
+      background: linear-gradient(145deg, var(--accent), #5d42da);
+      border: 1px solid rgba(255,255,255,.12);
+      padding: 17px 15px;
+      text-align: center;
+      font-weight: 800;
+      border-radius: 14px;
+      transition: transform .18s ease, box-shadow .18s ease;
+      box-shadow: 0 10px 25px rgba(124,92,255,.18);
+    }
+
+    .test-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 16px 30px rgba(124,92,255,.26);
+    }
+
+    .test-detail {
+      margin: 18px 0;
+      padding: 24px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      scroll-margin-top: 95px;
+    }
+
+    .test-detail h3 {
+      margin: 0 0 8px;
+    }
+
+    .test-detail .label {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(25,211,174,.12);
+      color: var(--accent-2);
+      font-size: .85rem;
+      font-weight: 700;
+    }
+
+    code {
+      font-family: "Cascadia Code", Consolas, monospace;
+    }
+
+    pre {
+      margin-top: 18px;
+      padding: 18px;
+      overflow: auto;
+      border-radius: 14px;
+      background: #080c17;
+      color: #d9e1ff;
+      border: 1px solid var(--border);
+    }
+
+    footer {
+      margin-top: 70px;
+      padding: 30px 0 50px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    @media (max-width: 850px) {
+      .hero { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+      .tests { grid-template-columns: repeat(2, 1fr); }
+      .tag { display: none; }
+    }
+
+    @media (max-width: 520px) {
+      .tests { grid-template-columns: 1fr; }
+      .container { width: min(100% - 24px, 1100px); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <nav>
+      <div class="brand">Grafana <span>k6</span></div>
+      <div class="tag">Load testing • Performance • CI/CD</div>
+    </nav>
+  </div>
+</header>
+
+<main class="container">
+  <section class="hero">
+    <div>
+      <h1>Tester la <span>performance</span> avant la production.</h1>
+      <p>
+        k6 est un outil de test de performance conçu pour simuler des utilisateurs virtuels,
+        mesurer le comportement d'une application sous charge et définir des seuils de qualité
+        exploitables dans une chaîne CI/CD.
+      </p>
+    </div>
+
+    <div class="hero-card">
+      <div class="metric"><span>Virtual Users</span><strong>VUs</strong></div>
+      <div class="metric"><span>Temps de réponse</span><strong>p95 / p99</strong></div>
+      <div class="metric"><span>Débit</span><strong>req/s</strong></div>
+      <div class="metric"><span>Erreurs</span><strong>error rate</strong></div>
+    </div>
+  </section>
+
+  <h2 class="section-title">Les éléments importants de k6</h2>
+
+  <section class="grid">
+    <article class="card">
+      <h3>Virtual Users</h3>
+      <p>Les VUs simulent plusieurs utilisateurs qui exécutent le même scénario en parallèle.</p>
+    </article>
+
+    <article class="card">
+      <h3>Scénarios</h3>
+      <p>Un script décrit ce que fait l'utilisateur : appel HTTP, authentification, navigation ou API.</p>
+    </article>
+
+    <article class="card">
+      <h3>Thresholds</h3>
+      <p>Les thresholds définissent des critères de réussite, par exemple : p95 &lt; 500 ms.</p>
+    </article>
+
+    <article class="card">
+      <h3>Métriques</h3>
+      <p>k6 mesure notamment la latence, les requêtes par seconde, les erreurs et la durée des requêtes.</p>
+    </article>
+
+    <article class="card">
+      <h3>Automatisation</h3>
+      <p>Les tests peuvent être intégrés dans GitHub Actions, GitLab CI, Jenkins ou d'autres pipelines.</p>
+    </article>
+
+    <article class="card">
+      <h3>Scripts JavaScript</h3>
+      <p>Les scénarios k6 sont écrits en JavaScript, ce qui rend les tests lisibles et faciles à versionner.</p>
+    </article>
+  </section>
+
+  <h2 class="section-title">Choisir un type de test</h2>
+
+  <div class="tests">
+    <a class="test-btn" href="#smoke">Smoke Test</a>
+    <a class="test-btn" href="#load">Load Test</a>
+    <a class="test-btn" href="#stress">Stress Test</a>
+    <a class="test-btn" href="#spike">Spike Test</a>
+  </div>
+
+  <section id="smoke" class="test-detail">
+    <h3>🔥 Smoke Test</h3>
+    <p>
+      Vérifie rapidement que le script et l'application fonctionnent correctement avec une charge très faible.
+    </p>
+    <span class="label">Exemple : 1 à 2 VUs</span>
+  </section>
+
+  <section id="load" class="test-detail">
+    <h3>📈 Load Test</h3>
+    <p>
+      Vérifie le comportement de l'application sous une charge normale ou attendue en production.
+    </p>
+    <span class="label">Exemple : 20 à 100 VUs</span>
+  </section>
+
+  <section id="stress" class="test-detail">
+    <h3>💥 Stress Test</h3>
+    <p>
+      Augmente progressivement la charge pour découvrir les limites du système et son point de saturation.
+    </p>
+    <span class="label">Objectif : trouver le breaking point</span>
+  </section>
+
+  <section id="spike" class="test-detail">
+    <h3>⚡ Spike Test</h3>
+    <p>
+      Simule une montée extrêmement rapide du trafic afin d'observer comment l'application réagit à un pic soudain.
+    </p>
+    <span class="label">Exemple : 10 → 500 VUs brutalement</span>
+  </section>
+
+  <h2 class="section-title">Exemple de commande</h2>
+
+  <pre><code>k6 run --vus 10 --duration 30s script.js</code></pre>
+
+  <h2 class="section-title">Principe dans une CI/CD</h2>
+
+  <pre><code>Code
+  ↓
+Build
+  ↓
+Tests unitaires
+  ↓
+k6 Performance Test
+  ↓
+Thresholds OK ?
+  ↓
+Deploy</code></pre>
+</main>
+
+<footer>
+  <div class="container">
+    Démo k6 — Performance Testing & DevOps
+  </div>
+</footer>
+
+</body>
+</html>
+"""
+
+path = Path("/mnt/data/k6_demo.html")
+path.write_text(html, encoding="utf-8")
+print(f"Fichier créé : {path}")
